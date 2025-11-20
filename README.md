@@ -1,4 +1,2 @@
-# Discord Terraform Project
-# Terraform + Discord project
-
-This project contains Terraform code to ...
+# discord-terraform-project
+My Terraform infrastructure project
