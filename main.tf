@@ -1,11 +1,5 @@
 # main.tf — Manages channels, category, and invite on EXISTING server
 
-# Input: Your server's ID from Step 1
-variable "server_id" {
-  type        = string
-  description = "ID of the existing Discord server to manage"
-  # Example: "123456789012345678"
-}
 
 # Create a "General" category
 resource "discord_category_channel" "general" {
