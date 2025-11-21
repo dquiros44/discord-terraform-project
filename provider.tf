@@ -1,15 +1,15 @@
 terraform {
 
-    required_version = ">= 0.13.0"
+  required_version = ">= 1.5.0"
 
-    required_providers {
-        discord = {
-            source = "Chaotic-Logic/discord"
-            version = "0.0.1"
-        }
+  required_providers {
+    discord = {
+      source  = "Lucky3028/discord"
+      version = "2.2.0"
     }
+  }
 }
 
 provider "discord" {
-    token = var.discord_token
+  token = var.discord_token
 }
