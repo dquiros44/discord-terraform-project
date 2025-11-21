@@ -1,0 +1,5 @@
+# Copy this file to secrets.auto.tfvars and fill in your real values
+# This file is in .gitignore — never commit real secrets!
+
+discord_token = "MTI3M...your_real_bot_token_here"
+server_id     = "408657104925097994"   # your real server ID
