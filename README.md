@@ -73,6 +73,7 @@ stages:
   jobs:
   - deployment: ApproveDeployment
     displayName: 'Manual Approval'
+    pool: server
     environment: TestApproval  # We'll create this environment next
     strategy:
       runOnce:
@@ -114,7 +115,8 @@ az pipelines create \
   --yaml-path azure-pipelines.yml \
   --skip-first-run true
 
-  
+## After that invite your discord bot to the TEST Server ##
+
 
 
 
