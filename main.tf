@@ -1,6 +1,6 @@
 # main.tf – Manages Discord server: roles, voice channels, category, text channel, invite, permissions
 # ═══════════════════════════════════════════════════════════
-# NEW: "canales de texto" category at the very top + 3 text channels
+# NEW: "canales de texto" category at the very top + 3 text channelss
 # ═══════════════════════════════════════════════════════════
 resource "discord_category_channel" "text_channels" {
   name      = "canales de texto"
