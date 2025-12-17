@@ -1,3 +1,19 @@
+How to connect Azure DevOps to this repo and deploy a discord server
+
+az devops configure --defaults organization=https://dev.azure.com/YOUR-ORG project=YOUR-PROJECT
+ git remote add azure https://dev.azure.com/azyrox144/HomelabTestProject/_git/DiscordProject
+
+
+
+
+
+
+
+
+
+
+
+
 # discord-terraform-project
 My Terraform infrastructure project
  
