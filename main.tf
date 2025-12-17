@@ -5,7 +5,7 @@
 resource "discord_category_channel" "text_channels" {
   name      = "canales de texto"
   server_id = var.server_id
-  position  = 1                     # forces it to the top
+  position  = 1                     # forces it to the topp
 }
 
 resource "discord_text_channel" "busco" {
