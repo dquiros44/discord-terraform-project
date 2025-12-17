@@ -1,265 +1,116 @@
-How to connect Azure DevOps to this repo and deploy a discord server
+# Discord Server Managed with Terraform
 
-az devops configure --defaults organization=https://dev.azure.com/YOUR-ORG project=YOUR-PROJECT
- 
- az repos create --name {your-repo-name}
- git remote add azure https://dev.azure.com/azyrox144/HomelabTestProject/_git/DiscordProject
+This project uses **Terraform** to automatically create and configure a Discord server (channels, roles, categories, invite links, etc.).
 
-git remote rename origin github          # old GitHub becomes "github"
-git remote add origin https://dev.azure.com/azyrox144/HomelabTestProject/_git/DiscordProject
+It's a complete Infrastructure-as-Code example for Discord – perfect for learning Terraform or automating community servers.
 
-git push
-## It will ask for username and a password
+## Features
+- Creates categories, text/voice channels, roles
+- Generates a permanent invite link
+- Fully idempotent (run multiple times safely – no duplicates after initial import)
+- Secrets kept 100% local (never uploaded to GitHub)
 
-
-## Create the variable group
-
-az pipelines variable-group create --name DiscordTerraformSecrets \
-  --description "Secrets for Discord Terraform test" \
-  --authorize true  # Allow all pipelines to use it
-
-  az pipelines variable-group create \
-  --name DiscordTerraformSecrets \
-  --description "Secrets for Discord Terraform test" \
-  --authorize true \
-  --variables GUILD_ID_TEST=YOUR_TEST_GUILD_ID_HERE DISCORD_BOT_TOKEN_TEST={PASTE YOUR ACTUAL DISCORD BOT TOKEN} \
-  --output table
-
-## After the variable group has been created, it's time to create your "azure-pipelines.yml" locally on the dev branch, which is the file that gives instructions to the pipelines
-
-user$> touch azure-pipeliens.yml
-
-user$> nano azure-pipelines.yml
-
-## Once you are in the editor for the file, paste this:
-
-trigger:
-  branches:
-    include:
-      - dev
-
-pool: 
-  name: Default  # ← Replace with your self-hosted agent pool name
-
-variables:
-  - group: DiscordTerraformSecrets
-
-stages:
-- stage: TestOnDiscord
-  displayName: 'Test Terraform on Test Discord Server'
-  jobs:
-  - job: TerraformTest
-    steps:
-      - script: |
-          terraform --version
-          terraform init
-        displayName: 'Terraform Init'
-
-      - script: |
-          terraform validate
-        displayName: 'Terraform Validate'
-
-      - script: |
-          terraform plan -var "guild_id=$(GUILD_ID_TEST)" -var "discord_bot_token=$(DISCORD_BOT_TOKEN_TEST)" -out=tfplan.test
-        displayName: 'Terraform Plan (Test)'
-
-      - script: |
-          terraform apply -auto-approve tfplan.test
-        displayName: 'Terraform Apply (Test)'
-
-- stage: ManualApproval
-  dependsOn: TestOnDiscord
-  condition: succeeded()
-  jobs:
-  - deployment: ApproveDeployment
-    displayName: 'Manual Approval'
-    pool: server
-    environment: TestApproval  # We'll create this environment next
-    strategy:
-      runOnce:
-        deploy:
-          steps:
-            - task: ManualValidation@0
-              timeoutInMinutes: 4320
-              inputs:
-                notifyUsers: 'your-email@example.com'  # ← Your email
-                instructions: 'Check the TEST Discord server. Approve if good to merge to main.'
-
-- stage: MergeToMain
-  dependsOn: ManualApproval
-  condition: succeeded()
-  jobs:
-  - job: Merge
-    steps:
-      - checkout: self
-        persistCredentials: true
-
-      - script: |
-          git config user.name "Azure Pipeline"
-          git config user.email "pipeline@azuredevops.com"
-          git checkout main
-          git pull origin main
-          git merge origin/dev --no-ff -m "Auto-merge after test approval"
-          git push origin main
-        displayName: 'Merge dev to main'
-
-
-## After you set the yml file, type this command to configure the pipeline that will utilize the yml file:
-
-az pipelines create \
-  --name "Discord Terraform Test & Merge" \
-  --description "Tests on dev, approves, merges to main" \
-  --repository DiscordProject \
-  --repository-type tfsgit \ 
-  --branch dev \
-  --yaml-path azure-pipelines.yml \
-  --skip-first-run true
-
-## After that invite your discord bot to the TEST Server ##
-
-## It's very important that you give permissions to your pipeline to access your agent pools
-
-## This next command will give you the pool list "ID"
-az pipelines pool list --query "[?name=='Default'].id" -o tsv
-
-## This next command will give you the pipelines list "ID"
-az pipelines list --project HomelabTestProject --query "[?name=='Discord Terraform Test & Merge'].id" -o tsv
-
-az rest --method patch \\n  --url "https://dev.azure.com/azyrox144/HomelabTestProject/_apis/pipelines/pipelinePermissions?api-version=7.1-preview.1" \\n  --resource 499b84ac-1321-427f-aa17-267ca6975798 \\n  --body '[{"resource":{"type":"queue","id":"1"},"pipelines":[{"id":2,"authorized":true}]}]' \\n  --headers "Content-Type=application/json"
-
-
-## Give the pipeline access to the environment "ManualApproval" with this command
-
-## First find the Environement ID with this command 
-az rest --method get \
-  --url "https://dev.azure.com/azyrox144/HomelabTestProject/_apis/distributedtask/environments?api-version=7.1" \
-  --resource 499b84ac-1321-427f-aa17-267ca6975798 \
-  --query "value[?name=='TestApproval'].id" -o tsv
-## You will get something like (1)
-
-
-## That numeric result you will replace it for "ENV_ID" which is in the 3rd line of the next command.
-az rest --method patch \
-  --url "https://dev.azure.com/azyrox144/HomelabTestProject/_apis/pipelines/pipelinepermissions?api-version=7.1-preview.1" \
-  --resource 499b84ac-1321-427f-aa17-267ca6975798 \
-  --body '[{"resource":{"type":"environment","id":"ENV_ID"},"pipelines":[{"id":2,"authorized":true}]}]' \
-  --headers "Content-Type=application/json"
-
-## Give permission to the dev branch to push code to the Main branch
-
-# Git repositories namespace ID (fixed for all Azure DevOps)
-NAMESPACE_ID="2e9eb7ed-3c0a-47d4-87c1-0ffdd275fd87"                            
-  # Your project ID (from earlier outputs)
-PROJECT_ID="35d3ad28-aa2b-4278-915d-f7c041fb5204"
-
-# Your repository ID (from az repos create output earlier)
-REPO_ID="31c9192c-b6ee-43be-941f-1d602e79d5c8"
-
-# Use this to get the prescriptor
-az devops security group list \
-  --scope organization \
-  --query "graphGroups[?contains(displayName,'Project Collection Build Service')].descriptor | [0]" -o tsv
-
-  ## The result you use it with the next command
-NAMESPACE_ID="2e9eb7ed-3c0a-47d4-87c1-0ffdd275fd87"
-TOKEN="repoV2/$PROJECT_ID/$REPO_ID"  # Or "repoV2/$PROJECT_ID" for project-wide
-az devops security permission update \
-  --id $NAMESPACE_ID \
-  --subject PRESCRIPTOR_HERE \
-  --token $TOKEN \
-  --allow-bit 2 \
-  --merge true
-## Quick fix for permissions
-Recommended Fix: Grant Permission via Azure DevOps UI (One-Time, Easiest)
-
-Go to Project settings (gear icon bottom left) > Repositories (under Repos).
-Select your repository: DiscordProject.
-Click the Security tab.
-In the search box, paste your project ID: 35d3ad28-aa2b-4278-915d-f7c041fb5204
-This reveals the hidden build service account: HomelabTestProject Build Service (azyrox144) or similar.
-
-# discord-terraform-project
-My Terraform infrastructure project
- 
-# Discord Server created & managed with Terraform (2025)
-
-This project creates and fully configures a Discord server using **Terraform** – 100% automatically (except one tiny manual step you do once).
-
-You will end up with:
-- A real Discord server
-- A "General" category
-- A "general" text channel
-- A permanent invite link printed in your terminal
-- All secrets kept **100% safe** (never uploaded to GitHub)
-
-Perfect for learning Terraform, Infrastructure-as-Code, or automating Discord communities!
-
-## What you need
-
-- Windows 11 (or Windows 10 + WSL2)
-- WSL2 with Ubuntu (you already have it!)
-- Git + GitHub account
-- VS Code with "Remote - WSL" extension (optional but nice)
+## Prerequisites
+- Git
+- Terraform (v1.5+ recommended)
 - A Discord account
+- (Optional) Azure DevOps for CI/CD automation
 
-## Step-by-step setup (follow exactly)
+## Local Setup (Run on Your Machine)
 
-### 1. Clone this repository
+### 1. Clone the repository
 ```bash
-git clone https://github.com/dquiros44/discord-terraform-project.git
+git clone https://github.com/your-username/discord-terraform-project.git
 cd discord-terraform-project
-2. Create your own Discord bot (2 minutes)
 
-Go to → https://discord.com/developers/applications
-Click "New Application" → name it anything (e.g. "Terraform Bot") → Create
+2. Create a Discord Bot
+
+Go to https://discord.com/developers/applications
+New Application → name it → Create
 Left menu → Bot → Add Bot → Yes, do it!
-Click Copy under the bot’s name → this is your bot token (keep it secret!)
+Copy the token under the bot's username (this is your bot token – keep it secret!)
 
-3. Create a Discord server manually (30 seconds – only once!)
+3. Create a Discord Server
 
-Open Discord → click the big + on the left sidebar
-Choose "Create My Own" → name it → Create
-Enable Developer Mode:
-Discord Settings → Advanced → turn on Developer Mode
+In Discord, click the + icon on the left sidebar → Create My Own → name it → Create
+Enable Developer Mode: Settings → Advanced → Developer Mode
+Right-click the server icon → Copy Server ID → save it
 
-Right-click your new server icon → Copy Server ID → paste it somewhere safe
+4. Invite the Bot to Your Server
 
-4. Invite your bot to the server
-
-In Developer Portal → your app → OAuth2 → URL Generator
+In Developer Portal → your app → OAuth2 > URL Generator
 Scopes → check bot
-Bot Permissions → check Administrator (easiest for now)
-Copy the generated URL at the bottom
-Paste it in your browser → select your server → Authorize
+Bot Permissions → check Administrator (or minimal needed permissions)
+Copy the generated URL → open in browser → select your server → Authorize
 
-Your bot should now appear in the member list!
-5. Add your secrets locally (never goes to GitHub!)
+5. Add Your Secrets Locally (Safe – Never Committed)
+
 cp terraform.tfvars.example secrets.auto.tfvars
-nano secrets.auto.tfvars
-Paste your real values:
-hcldiscord_token = "MTI3M...paste_your_real_bot_token_here"
-server_id     = "123456789012345678"   # ← your real server ID from step 3
-Save: Ctrl+O → Enter → Ctrl+X
-This file is in .gitignore → 100% safe!
-6. Run Terraform – watch the magic!
-terraform init
-terraform apply -auto-approve
-You’ll get output like:
-textinvite_link = "https://discord.gg/abc123xyz"
-Click it → you’re in your fully automated server!
-7. Want to clean up later?
-terraform destroy -auto-approve
-(Removes channels & invite, keeps the base server)
-Project files explained
-text├── provider.tf                → uses the Lucky3028/discord provider
-├── variables.tf               → defines needed variables
-├── main.tf                    → creates category, channel, and invite
-├── terraform.tfvars.example   → template (safe to share)
-├── secrets.auto.tfvars        → YOUR secrets (never committed!)
-└── .gitignore                 → blocks secrets from GitHub
-Safety & best practices
+nano secrets.auto.tfvars  # or use your favorite editor
 
-Never commit secrets.auto.tfvars or any *.auto.tfvars
-Your bot token is like a password – keep it secret!
-After everything works, you can reduce the bot’s permissions
-Works on any machine – just clone + add your secrets file
+Paste your values:
+
+discord_token = "YOUR_BOT_TOKEN_HERE"
+server_id     = "YOUR_SERVER_ID_HERE"
+
+secrets.auto.tfvars is in .gitignore → it will never be uploaded to GitHub.
+
+6. Run Terraform
+terraform init
+terraform plan    # Preview changes
+terraform apply   # Type "yes" when prompted (or -auto-approve for non-interactive)
+
+Output will include an invite link – click it to join your automated server!
+
+7. Clean Up (Optional)
+terraform destroy
+
+Optional: Full CI/CD with Azure DevOps
+This repo includes an azure-pipelines.yml for automated testing and deployment using Azure DevOps.
+Overview of the Automation Flow
+
+Push to dev branch → pipeline runs on self-hosted agent
+Terraform applies changes to a test Discord server (using separate test variables)
+Manual approval step (email notification)
+On approval → automatically merges dev into main
+
+Setting Up Azure DevOps (High-Level Steps)
+
+Create an Azure DevOps project and repo
+Mirror this GitHub repo to Azure Repos
+Set up a self-hosted agent (Linux recommended)
+Create a variable group DiscordTerraformSecrets with:
+GUILD_ID_TEST (test server ID)
+DISCORD_BOT_TOKEN_TEST (test bot token – can be same bot)
+
+Create an environment named TestApproval with manual approval
+Grant pipeline permissions to:
+Agent pool (Default or your pool)
+Environment (TestApproval)
+Repository contribute permission for the build service
+
+Commit azure-pipelines.yml → pipeline auto-creates/triggers
+
+Detailed setup commands are available in project documentation (internal notes), but the YAML is ready to use.
+
+Project Structure
+
+├── provider.tf              → Discord provider configuration
+├── variables.tf             → Input variables
+├── main.tf                  → Discord resources (channels, roles, etc.)
+├── azure-pipelines.yml      → CI/CD pipeline (test → approve → merge)
+├── terraform.tfvars.example → Template for local secrets
+├── secrets.auto.tfvars      → Your local secrets (gitignored)
+└── .gitignore               → Protects secrets
+
+Safety Notes
+
+Never commit secrets.auto.tfvars or any file containing tokens/server IDs
+Use minimal bot permissions in production
+For true idempotency: import existing resources once with terraform import
+
+Enjoy your fully automated Discord server! 🚀
+
+
+Copy the entire content above (including the code block) and save it as `README.md` in your repository. It's completely free of any private tokens, URLs, IDs, or personal details.
+
