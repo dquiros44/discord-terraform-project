@@ -1,0 +1,74 @@
+trigger:
+  branches:
+    include:
+      - dev
+
+pool: 
+  name: Default  # ← Replace with your self-hosted agent pool name
+
+variables:
+  - group: DiscordTerraformSecrets
+
+stages:
+- stage: TestOnDiscord
+  displayName: 'Test Terraform on Test Discord Server'
+  jobs:
+  - job: TerraformTest
+    steps:
+      - script: |
+          terraform --version
+          terraform init
+        displayName: 'Terraform Init'
+
+      - script: |
+          terraform validate
+        displayName: 'Terraform Validate'
+
+      - script: |
+          terraform plan \
+            -var="server_id=$(GUILD_ID_TEST)" \
+            -var="discord_token=$(DISCORD_BOT_TOKEN_TEST)" \
+            -out=tfplan.test
+        displayName: 'Terraform Plan (Test)'
+
+      - script: |
+          terraform apply -auto-approve tfplan.test
+        displayName: 'Terraform Apply (Test)'
+
+- stage: ManualApproval
+  dependsOn: TestOnDiscord
+  condition: succeeded()
+  jobs:
+  - deployment: ApproveDeployment
+    displayName: 'Manual Approval Before Merge'
+    pool: server  # ← Replace with your self-hosted agent pool name  
+    environment: TestApproval  # We'll create this environment next
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+            - task: ManualValidation@0
+              timeoutInMinutes: 4320
+              inputs:
+                notifyUsers: 'azyrox144@gmail.com'  # ← Your email
+                instructions: 'Check the TEST Discord server. Approve if good to merge to main.'
+
+- stage: MergeToMain
+  dependsOn: ManualApproval
+  condition: succeeded()
+  jobs:
+  - job: Merge
+    steps:
+      - checkout: self
+        persistCredentials: true
+
+      - script: |
+          git config user.name "Azure Pipeline"
+          git config user.email "pipeline@azuredevops.com"
+          git checkout main
+          git pull origin main
+          git merge origin/dev --no-ff -m "Auto-merge after test approval"
+          git push origin main
+        displayName: 'Merge dev to main'
+
+
