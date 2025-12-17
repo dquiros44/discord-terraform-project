@@ -25,7 +25,10 @@ stages:
         displayName: 'Terraform Validate'
 
       - script: |
-          terraform plan -var "guild_id=$(GUILD_ID_TEST)" -var "discord_bot_token=$(DISCORD_BOT_TOKEN_TEST)" -out=tfplan.test
+          terraform plan \
+            -var="discord_token=$(DISCORD_BOT_TOKEN)" \
+            -var="server_id=$(TEST_DISCORD_SERVER_ID)" \
+            -out=tfplan.test
         displayName: 'Terraform Plan (Test)'
 
       - script: |
