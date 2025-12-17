@@ -117,13 +117,66 @@ az pipelines create \
 
 ## After that invite your discord bot to the TEST Server ##
 
+## It's very important that you give permissions to your pipeline to access your agent pools
+
+## This next command will give you the pool list "ID"
+az pipelines pool list --query "[?name=='Default'].id" -o tsv
+
+## This next command will give you the pipelines list "ID"
+az pipelines list --project HomelabTestProject --query "[?name=='Discord Terraform Test & Merge'].id" -o tsv
+
+az rest --method patch \\n  --url "https://dev.azure.com/azyrox144/HomelabTestProject/_apis/pipelines/pipelinePermissions?api-version=7.1-preview.1" \\n  --resource 499b84ac-1321-427f-aa17-267ca6975798 \\n  --body '[{"resource":{"type":"queue","id":"1"},"pipelines":[{"id":2,"authorized":true}]}]' \\n  --headers "Content-Type=application/json"
 
 
+## Give the pipeline access to the environment "ManualApproval" with this command
+
+## First find the Environement ID with this command 
+az rest --method get \
+  --url "https://dev.azure.com/azyrox144/HomelabTestProject/_apis/distributedtask/environments?api-version=7.1" \
+  --resource 499b84ac-1321-427f-aa17-267ca6975798 \
+  --query "value[?name=='TestApproval'].id" -o tsv
+## You will get something like (1)
 
 
+## That numeric result you will replace it for "ENV_ID" which is in the 3rd line of the next command.
+az rest --method patch \
+  --url "https://dev.azure.com/azyrox144/HomelabTestProject/_apis/pipelines/pipelinepermissions?api-version=7.1-preview.1" \
+  --resource 499b84ac-1321-427f-aa17-267ca6975798 \
+  --body '[{"resource":{"type":"environment","id":"ENV_ID"},"pipelines":[{"id":2,"authorized":true}]}]' \
+  --headers "Content-Type=application/json"
 
+## Give permission to the dev branch to push code to the Main branch
 
+# Git repositories namespace ID (fixed for all Azure DevOps)
+NAMESPACE_ID="2e9eb7ed-3c0a-47d4-87c1-0ffdd275fd87"                            
+  # Your project ID (from earlier outputs)
+PROJECT_ID="35d3ad28-aa2b-4278-915d-f7c041fb5204"
 
+# Your repository ID (from az repos create output earlier)
+REPO_ID="31c9192c-b6ee-43be-941f-1d602e79d5c8"
+
+# Use this to get the prescriptor
+az devops security group list \
+  --scope organization \
+  --query "graphGroups[?contains(displayName,'Project Collection Build Service')].descriptor | [0]" -o tsv
+
+  ## The result you use it with the next command
+NAMESPACE_ID="2e9eb7ed-3c0a-47d4-87c1-0ffdd275fd87"
+TOKEN="repoV2/$PROJECT_ID/$REPO_ID"  # Or "repoV2/$PROJECT_ID" for project-wide
+az devops security permission update \
+  --id $NAMESPACE_ID \
+  --subject PRESCRIPTOR_HERE \
+  --token $TOKEN \
+  --allow-bit 2 \
+  --merge true
+## Quick fix for permissions
+Recommended Fix: Grant Permission via Azure DevOps UI (One-Time, Easiest)
+
+Go to Project settings (gear icon bottom left) > Repositories (under Repos).
+Select your repository: DiscordProject.
+Click the Security tab.
+In the search box, paste your project ID: 35d3ad28-aa2b-4278-915d-f7c041fb5204
+This reveals the hidden build service account: HomelabTestProject Build Service (azyrox144) or similar.
 
 # discord-terraform-project
 My Terraform infrastructure project
