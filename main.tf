@@ -184,7 +184,7 @@ resource "discord_voice_channel" "femboy_team" {
   user_limit = 99
 }
 
-# tilin – Open to all
+# tilin – Open to alls
 resource "discord_voice_channel" "tilin" {
   name      = "tilin"
   server_id = var.server_id
