@@ -37,7 +37,9 @@ stages:
   condition: succeeded()
   jobs:
   - deployment: ApproveDeployment
-    displayName: 'Manual Approval'
+    displayName: 'Manual Approval Before Merge'
+    pool:
+    name: Default  # ← Replace with your self-hosted agent pool name  
     environment: TestApproval  # We'll create this environment next
     strategy:
       runOnce:
@@ -68,4 +70,3 @@ stages:
         displayName: 'Merge dev to main'
 
 
-        
