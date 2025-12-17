@@ -38,7 +38,7 @@ stages:
   jobs:
   - deployment: ApproveDeployment
     displayName: 'Manual Approval Before Merge'
-    pool: Default  # ← Replace with your self-hosted agent pool name  
+    pool: server  # ← Replace with your self-hosted agent pool name  
     environment: TestApproval  # We'll create this environment next
     strategy:
       runOnce:
@@ -47,7 +47,7 @@ stages:
             - task: ManualValidation@0
               timeoutInMinutes: 4320
               inputs:
-                notifyUsers: 'your-email@example.com'  # ← Your email
+                notifyUsers: 'azyrox144@gmail.com'  # ← Your email
                 instructions: 'Check the TEST Discord server. Approve if good to merge to main.'
 
 - stage: MergeToMain
