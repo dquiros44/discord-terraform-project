@@ -1,11 +1,120 @@
 How to connect Azure DevOps to this repo and deploy a discord server
 
 az devops configure --defaults organization=https://dev.azure.com/YOUR-ORG project=YOUR-PROJECT
+ 
+ az repos create --name {your-repo-name}
  git remote add azure https://dev.azure.com/azyrox144/HomelabTestProject/_git/DiscordProject
 
+git remote rename origin github          # old GitHub becomes "github"
+git remote add origin https://dev.azure.com/azyrox144/HomelabTestProject/_git/DiscordProject
+
+git push
+## It will ask for username and a password
 
 
+## Create the variable group
 
+az pipelines variable-group create --name DiscordTerraformSecrets \
+  --description "Secrets for Discord Terraform test" \
+  --authorize true  # Allow all pipelines to use it
+
+  az pipelines variable-group create \
+  --name DiscordTerraformSecrets \
+  --description "Secrets for Discord Terraform test" \
+  --authorize true \
+  --variables GUILD_ID_TEST=YOUR_TEST_GUILD_ID_HERE DISCORD_BOT_TOKEN_TEST={PASTE YOUR ACTUAL DISCORD BOT TOKEN} \
+  --output table
+
+## After the variable group has been created, it's time to create your "azure-pipelines.yml" locally on the dev branch, which is the file that gives instructions to the pipelines
+
+user$> touch azure-pipeliens.yml
+
+user$> nano azure-pipelines.yml
+
+## Once you are in the editor for the file, paste this:
+
+trigger:
+  branches:
+    include:
+      - dev
+
+pool: 
+  name: Default  # ← Replace with your self-hosted agent pool name
+
+variables:
+  - group: DiscordTerraformSecrets
+
+stages:
+- stage: TestOnDiscord
+  displayName: 'Test Terraform on Test Discord Server'
+  jobs:
+  - job: TerraformTest
+    steps:
+      - script: |
+          terraform --version
+          terraform init
+        displayName: 'Terraform Init'
+
+      - script: |
+          terraform validate
+        displayName: 'Terraform Validate'
+
+      - script: |
+          terraform plan -var "guild_id=$(GUILD_ID_TEST)" -var "discord_bot_token=$(DISCORD_BOT_TOKEN_TEST)" -out=tfplan.test
+        displayName: 'Terraform Plan (Test)'
+
+      - script: |
+          terraform apply -auto-approve tfplan.test
+        displayName: 'Terraform Apply (Test)'
+
+- stage: ManualApproval
+  dependsOn: TestOnDiscord
+  condition: succeeded()
+  jobs:
+  - deployment: ApproveDeployment
+    displayName: 'Manual Approval'
+    environment: TestApproval  # We'll create this environment next
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+            - task: ManualValidation@0
+              timeoutInMinutes: 4320
+              inputs:
+                notifyUsers: 'your-email@example.com'  # ← Your email
+                instructions: 'Check the TEST Discord server. Approve if good to merge to main.'
+
+- stage: MergeToMain
+  dependsOn: ManualApproval
+  condition: succeeded()
+  jobs:
+  - job: Merge
+    steps:
+      - checkout: self
+        persistCredentials: true
+
+      - script: |
+          git config user.name "Azure Pipeline"
+          git config user.email "pipeline@azuredevops.com"
+          git checkout main
+          git pull origin main
+          git merge origin/dev --no-ff -m "Auto-merge after test approval"
+          git push origin main
+        displayName: 'Merge dev to main'
+
+
+## After you set the yml file, type this command to configure the pipeline that will utilize the yml file:
+
+az pipelines create \
+  --name "Discord Terraform Test & Merge" \
+  --description "Tests on dev, approves, merges to main" \
+  --repository DiscordProject \
+  --repository-type tfsgit \ 
+  --branch dev \
+  --yaml-path azure-pipelines.yml \
+  --skip-first-run true
+
+  
 
 
 
